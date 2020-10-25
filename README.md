@@ -17,6 +17,7 @@ library(devtools)
 install_github("sambiostat/RICWL")
 
 ## Code Examples
+```r
 library(RICWL)
 library(caret)
 
@@ -125,14 +126,13 @@ result <-cbind( c(value.pwl.frac, pcd.pwl.frac, med.pwl.frac),
              c(optY.test, 1, optYmed.test ))
   
  
-  
-  return(result)
-}
+result 
+```
 
 ## Status
-Project is: _finished_, 
+Project is: _finished_ 
 
 
 
 ## Contact
-Created by [@jinchun zhang](jczhang0818@gmail.com) - feel free to contact me!
+Created by jinchun zhang(jczhang0818@gmail.com) - feel free to contact me!
