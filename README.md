@@ -3,6 +3,8 @@ RICWL R package.
 
 Robust index of confidence weighted learning for estimating optimal individual treatment rule when outcome has skwewed or heavy-tailed distributions or with outliers.
 By using a similarity weighted indicator as our index of confidence, it uses only direction of paired outcomes but not their absoluate values, thus achived robustness towards irrgular outcome distributions.
+Specially, we allow two types of simialrity functions, Cosine-based and Fraction-based. Those two are more reliable in high dimension compared to other similarity measurements.
+
 
 ## Table of contents
 * [Setup](#setup)
@@ -10,13 +12,14 @@ By using a similarity weighted indicator as our index of confidence, it uses onl
 * [Status](#status)
 * [Contact](#contact)
 
-
 ## Setup
 install.packages("devtools")
 library(devtools)
 install_github("sambiostat/RICWL")
 
 ## Code Examples
+
+* Generate data with cauchy error term
 ```r
 library(RICWL)
 library(caret)
@@ -41,16 +44,13 @@ sim<-function(N=500, p=5, sigma=0.3){
   optY=Ym + abs(Yc)
   
   out=list("X"=X, "A"=A, "Y"=Y, "optA"=optA,  "Y1"=Y1, "Y0"=Y0, "optY"=optY,
-           "s2n"=s2n, "PrOptA1"= tmp[2]/N, "EY"=mean(optY), "EYopt0"=mean(optY[optA==-1]),
-           "EYopt1"=mean(optY[optA==1]), "EYAll0"=mean(Y0), "EYAll1"=mean(Y1),
-           "MedY"=median(optY), "MedYopt0"=median(optY[optA==-1]),
-           "MedYopt1"=median(optY[optA==1]),"MedYAll0"=median(Y0),
-           "MedYAll1"=median(Y1))
+           "EY"=mean(optY),  "MedY"=median(optY))
 
   return(out)
 }
 
-N=500
+#Set parameter for generative model
+N=300
 p=5
 sgm=0.3
 s=1
@@ -59,25 +59,41 @@ sgm_list=c(0.001,0.01, 1,10,100,1000)
 c_list=4^(-2:2)
 m=5
 
-test.data <- sim(N=10000, p=p, sigma=sgm, scenario = s)
+
+#Generate test data 
+test.data <- sim(N=10000, p=p, sigma=sgm)
 X.test <- test.data$X
 optTr.test <- factor(test.data$optA, levels=c(-1,1))
-y.test <- test.data$y
+Y.test <- test.data$Y
 Tr.test <- test.data$A
-s2n.test <- test.data$s2n
 y1.test <- test.data$Y1
 y0.test <- test.data$Y0
 optY.test <- test.data$EY
 optYmed.test <- test.data$MedY
 
-train.data <- sim(N=N, p=p, sigma=sgm, scenario = s)
+tmpdata=rbind.data.frame(cbind.data.frame("Y"=y1.test, cond="Trt=1"),
+              cbind.data.frame("Y"=y0.test, cond="Trt=-1"))
+
+#plot the distribution of generated outcome Y under two treatment
+ggplot(tmpdata, aes(x=Y, fill=cond)) +
+  geom_histogram(binwidth=.5, alpha=.5, position="identity")
+ 
+```
+![Histogram](https://github.com/sambiostat/RICWL/blob/main/hist.png)
+
+```r
+#generate training data 
+train.data <- sim(N=N, p=p, sigma=sgm)
 X <- train.data[[1]]
 Tr <- train.data[[2]]
 y <- train.data[[3]]
-
+```
+*Fit 4 mdoels
+```r
 #RICL_frac
-pwl.frac.fit <- RICWL_CV(H=X, A=Tr, R2=y, pi=NULL, kernel='rbf', pentype = "lasso", XS=NULL, sigmalst=sgm_list,
-                                   m=m,  e=1e-5, clist=c_list, theta_list = theta_list ,frac.par=0.5, method="frac")
+pwl.frac.fit <- RICWL_CV(H=X, A=Tr, R2=y, pi=NULL, kernel='rbf', pentype = "lasso", 
+		XS=NULL, sigmalst=sgm_list,m=m,  e=1e-5, clist=c_list,
+		 theta_list = theta_list ,frac.par=0.5, method="frac")
   
 optTr.pwl.frac<- predict(pwl.frac.fit, x=X.test)
 optTr.pwl.frac <- factor(optTr.pwl.frac, levels=c(-1,1))
@@ -88,8 +104,9 @@ med.pwl.frac <- median(c(y1.test[optTr.pwl.frac==1], y0.test[optTr.pwl.frac==-1]
 
   
 #RICL_cos
-pwl.cos.fit <- RICWL_CV(H=X, A=Tr, R2=y, pi=NULL, kernel='rbf', pentype = "lasso", XS=NULL, sigmalst=sgm_list,
-                                        m=m,  e=1e-5, clist=c_list, theta_list = theta_list ,frac.par=0.5, method="cos")                            
+pwl.cos.fit <- RICWL_CV(H=X, A=Tr, R2=y, pi=NULL, kernel='rbf', pentype = "lasso", 
+		XS=NULL, sigmalst=sgm_list,  m=m,  e=1e-5, clist=c_list, 
+		theta_list = theta_list ,frac.par=0.5, method="cos")                            
   
 optTr.pwl.cos<-predict(pwl.cos.fit, x=X.test)
 optTr.pwl.cos <- factor(optTr.pwl.cos, levels=c(-1,1))
@@ -99,7 +116,8 @@ value.pwl.cos<- mean(c(y1.test[optTr.pwl.cos==1], y0.test[optTr.pwl.cos==-1]))
 med.pwl.cos<- median(c(y1.test[optTr.pwl.cos==1], y0.test[optTr.pwl.cos==-1]))
   
 ##other rwl  
-rwl.fit <- ROWL(X, Tr, y, pi=rep(0.5, N), kernel ="rbf", clinear=c_list, sigma=sgm_list,m=m, residual=T)
+rwl.fit <- ROWL(X, Tr, y, pi=rep(0.5, N), kernel ="rbf", clinear=c_list, 
+		sigma=sgm_list,m=m, residual=T)
 optTr.rwl<-  predict(rwl.fit, X.test)
 optTr.rwl<- factor(optTr.rwl, levels=c(-1,1))
 cfm.rwl <- caret::confusionMatrix(as.factor(optTr.rwl), reference=as.factor(optTr.test))
@@ -108,7 +126,8 @@ value.rwl <- mean(c(y1.test[optTr.rwl==1], y0.test[optTr.rwl==-1]))
 med.rwl <- median(c(y1.test[optTr.rwl==1], y0.test[optTr.rwl==-1]))
 
 #owl
-owl.fit <- ROWL(X, Tr, y, pi=rep(0.5, N), kernel ="rbf", clinear=c_list, sigma=sgm_list,m=m, residual=F)
+owl.fit <- ROWL(X, Tr, y, pi=rep(0.5, N), kernel ="rbf", clinear=c_list,
+		 sigma=sgm_list,m=m, residual=F)
 optTr.owl <- predict(owl.fit, X.test)
 optTr.owl<-factor(optTr.owl, levels=c(-1,1))
 cfm.owl <- caret::confusionMatrix(as.factor(optTr.owl), reference=as.factor(optTr.test))
@@ -116,7 +135,6 @@ pcd.owl<- cfm.owl$overall["Accuracy"]
 value.owl <- mean(c(y1.test[optTr.owl==1], y0.test[optTr.owl==-1]))
 med.owl <- median(c(y1.test[optTr.owl==1], y0.test[optTr.owl==-1]))   
 
-  
    
 ##combine the res
 result <-cbind( c(value.pwl.frac, pcd.pwl.frac, med.pwl.frac),
