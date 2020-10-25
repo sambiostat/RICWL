@@ -13,12 +13,13 @@ Specially, we allow two types of simialrity functions, Cosine-based and Fraction
 * [Contact](#contact)
 
 ## Setup
+```r
 install.packages("devtools")
 library(devtools)
 install_github("sambiostat/RICWL")
+```
 
 ## Code Examples
-
 * Generate data with cauchy error term
 ```r
 library(RICWL)
